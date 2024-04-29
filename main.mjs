@@ -203,8 +203,7 @@ class AntelopeNetClient {
         body.writeUInt16(1212);
 
         // Chain ID (32 bytes)
-        const chainId = this.#chainId;
-        body.writeUint8Array(Buffer.from(chainId, 'hex'));
+        body.writeUint8Array(Buffer.from(this.#chainId, 'hex'));
 
         // Node ID (32 bytes)
         body.writeUint8Array(randomBytes(32));
@@ -217,6 +216,7 @@ class AntelopeNetClient {
 
         // Message Time (uint64)
         body.writeUInt64(nanoseconds());
+        console.log("nanoseconds:", nanoseconds());
 
         // Token (32 bytes)
         body.writeBuffer(Buffer.alloc(32, 0));
@@ -256,6 +256,7 @@ class AntelopeNetClient {
         header.writeUInt8(0);
 
         const message = Buffer.concat([header.filled, body.filled]);
+        console.log(header.filled.toString("hex"));
         console.log("Final handshake message:", message.toString('hex'));
         this.#socket.write(message);
         this.#handshake = true;

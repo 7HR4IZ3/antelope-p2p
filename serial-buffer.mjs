@@ -25,6 +25,7 @@ export class SerialBuffer {
     }
 
     get filled() {
+        console.log(this.#offset)
         return this.data.subarray(0, this.#offset);
     }
 

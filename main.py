@@ -1,8 +1,7 @@
 import socket
 import threading
-import struct
 from serial_buffer import SerialBuffer
-from utils import nanoseconds
+from utils import nanoseconds, random_bytes
 
 class AntelopeNetClient:
     def __init__(self, peer, chain_id):
@@ -15,13 +14,22 @@ class AntelopeNetClient:
         self.heartbeat_interval = 20  # in seconds
         self.heartbeat_timer = None
 
+        self.exit_lock = threading.Lock()
+
     def connect(self):
         host, port = self.peer.split(':')
         self.socket = socket.create_connection((host, int(port)))
+        self.exit_lock.acquire()
         self.attach_listeners()
 
     def attach_listeners(self):
-        threading.Thread(target=self.receive_messages).start()
+        threading.Thread(
+            target=self.receive_messages,
+            daemon=True
+        ).start()
+
+        self.exit_lock.acquire()
+        self.exit_lock.release()
 
     def receive_messages(self):
         try:
@@ -32,6 +40,7 @@ class AntelopeNetClient:
                 self.handle_net_message(data)
         finally:
             print('Connection closed')
+            self.exit_lock.release()
             if self.heartbeat_timer:
                 self.heartbeat_timer.cancel()
                 self.heartbeat_timer = None
@@ -139,28 +148,103 @@ class AntelopeNetClient:
     def log(self, *args):
         print(f"[{self.peer}]", *args)
 
+    # def perform_handshake(self):
+    #     body = SerialBuffer(bytearray(512))
+    #     print("Buffer starting:", body.data.hex())
+
+    #     # Network version (uint16)
+    #     body.write_uint16(1212)
+
+    #     # Chain ID (32 bytes)
+    #     body.write_buffer(bytearray.fromhex(self.chain_id))
+
+    #     # Node ID (32 bytes)
+    #     # Replace with your actual node ID (obtained or generated)
+    #     node_id = bytearray.fromhex('YOUR_NODE_ID_HERE')  # Replace with actual hex string
+    #     body.write_buffer(node_id)
+
+    #     # Public key type (K1 type = 0)
+    #     body.write_uint8(0)
+
+    #     # Public key data (33 bytes)
+    #     # Replace with your actual public key (obtained from key pair)
+    #     public_key = bytearray.fromhex('YOUR_PUBLIC_KEY_HERE')  # Replace with actual hex string (33 bytes)
+    #     body.write_buffer(public_key)
+
+    #     # Message Time (uint64)
+    #     body.write_uint64(nanoseconds())
+
+    #     # Token (32 bytes)
+    #     # Replace with actual token obtained during authentication (might involve server interaction)
+    #     token = bytearray.fromhex('YOUR_TOKEN_HERE')  # Replace with actual hex string (32 bytes)
+    #     body.write_buffer(token)
+
+    #     # Signature (65 bytes)
+    #     # Signature generation might involve your private key (depending on server requirements)
+    #     signature = bytearray.fromhex('YOUR_SIGNATURE_HERE')  # Replace with actual hex string (65 bytes)
+    #     body.write_buffer(signature)
+
+    #     # P2P Address (string)
+    #     body.write_string('127.0.0.1:9876')
+
+    #     # LIB Block Num (uint32)
+    #     body.write_uint32(0)
+
+    #     # LIB Block ID (32 bytes)
+    #     body.write_buffer(bytearray([0] * 32))
+
+    #     # Head Block Num (uint32)
+    #     body.write_uint32(0)
+
+    #     # Head Block ID (32 bytes)
+    #     body.write_buffer(bytearray([0] * 32))
+
+    #     # OS (string)
+    #     body.write_string('Linux')
+
+    #     # Agent (string)
+    #     body.write_string('Ghostbusters')
+
+    #     # Generation (uint16)
+    #     body.write_uint16(1)
+
+    #     header = SerialBuffer(bytearray(5))
+    #     header.write_uint32(len(body.data) + 1)
+    #     header.write_uint8(0)
+
+    #     message = header.data + body.data
+
+    #     try:
+    #         self.socket.send(message)
+    #         self.log("Handshake message sent")
+    #     except Exception as e:
+    #         self.log(f"Error during handshake: {e}")
+    #     finally:
+    #         self.log("Handshake method completed")
+    #         self.handshake = True
+
     def perform_handshake(self):
 
         body = SerialBuffer(bytearray(512))
-        print("Buffer starting:", body.data.hex())
+        print("Buffer starting:", body.filled.hex())
 
         # Network version (uint16)
         body.write_uint16(1212)
 
         # Chain ID (32 bytes)
-        body.write_buffer(bytearray.fromhex(self.chain_id))
+        body.write_uint8_array(bytearray.fromhex(self.chain_id))
 
         # Node ID (32 bytes)
-        body.write_buffer(bytearray([0]*32))  # Placeholder for random bytes
+        body.write_uint8_array(random_bytes(32))  # Placeholder for random bytes
 
+        print("Buffer after writing public key type:", body.filled.hex())
         body.write_uint8(0)  # Public key type (K1 type = 0)
-        print("Buffer after writing public key type:", body.data.hex())
-        body.write_buffer(bytearray(33))  # Public key data (33 zero bytes)
-        print("Buffer after writing public key data:", body.data.hex())
-
+        body.write_buffer(bytearray([0]*33))  # Public key data (33 zero bytes)
+        print("Buffer after writing public key data:", body.filled.hex())
 
         # Message Time (uint64)
         body.write_uint64(nanoseconds())
+        print("nanoseconds:", nanoseconds())
 
         # Token (32 bytes)
         body.write_buffer(bytearray([0]*32))
@@ -187,16 +271,17 @@ class AntelopeNetClient:
         body.write_string('Linux')
 
         # Agent (string)
-        body.write_string('Ghostbusters')
+        body.write_string('Antelope P2P Client')
 
         # Generation (uint16)
         body.write_uint16(1)
 
         header = SerialBuffer(bytearray(5))
-        header.write_uint32(len(body.data) + 1)
+        header.write_uint32(body.offset + 2)
         header.write_uint8(0)
 
-        message = header.data + body.data
+        message = header.filled + body.filled
+        print(header.filled.hex())
         print("Final handshake message:", message.hex())
         try:
             self.socket.send(message)
@@ -216,14 +301,20 @@ class AntelopeNetClient:
         body.write_uint64(0)
 
         header = SerialBuffer(bytearray(5))
-        header.write_uint32(len(body.data) + 1)
+        header.write_uint32(body.offset + 1)
         header.write_uint8(3)
-        message = header.data + body.data
+        message = header.filled + body.filled
         self.socket.send(message)
 
     def start_heartbeat(self):
-        self.heartbeat_timer = threading.Timer(self.heartbeat_interval, self.send_time_message)
+        self.heartbeat_timer = threading.Timer(
+            self.heartbeat_interval,
+            self.send_time_message
+        )
         self.heartbeat_timer.start()
 
-test_client = AntelopeNetClient("waxp2p.sentnl.io:9876", '1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4')
+test_client = AntelopeNetClient(
+    "waxp2p.sentnl.io:9876", 
+    '1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4'
+)
 test_client.connect()
