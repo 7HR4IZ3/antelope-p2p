@@ -1,0 +1,19 @@
+{
+  "name": "antelope-stateless-p2p",
+  "version": "0.1.0",
+  "description": "Stateless P2P network client for AntelopeIO Blockchains",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "node main.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": {
+    "name": "EOS Rio",
+    "url": "https://eosrio.io"
+  },
+  "license": "MIT"
+}
