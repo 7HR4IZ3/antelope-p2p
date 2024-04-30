@@ -25,7 +25,7 @@ export class SerialBuffer {
     }
 
     get filled() {
-        console.log(this.#offset)
+        // console.log(this.#offset)
         return this.data.subarray(0, this.#offset);
     }
 
@@ -36,6 +36,7 @@ export class SerialBuffer {
      */
     readUint8() {
         const value = this.data[this.#offset];
+        console.log(this.#offset)
         this.#offset += 1;
         return value;
     }

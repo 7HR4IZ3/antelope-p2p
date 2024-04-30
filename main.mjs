@@ -12,6 +12,7 @@ class AntelopeNetClient {
     #xmt = null;
 
     #chainId;
+    #nodeID;
 
     #headBlockNum = 0;
     #libBlockNum = 0;
@@ -19,9 +20,10 @@ class AntelopeNetClient {
     heartbeatInterval = 20000;
     heartbeatTimer = null;
 
-    constructor(peer, chainId) {
+    constructor(peer, chainId, nodeID) {
         this.#peer = peer;
         this.#chainId = chainId;
+        this.#nodeID = nodeID;
     }
 
     connect() {
@@ -207,6 +209,7 @@ class AntelopeNetClient {
 
         // Node ID (32 bytes)
         body.writeUint8Array(randomBytes(32));
+        // body.writeUint8Array(Buffer.from(this.#nodeID, "hex"));
 
         // Peer Public key (33 bytes)
         console.log("Buffer after writing public key type:", body.filled.toString('hex'));
@@ -216,7 +219,8 @@ class AntelopeNetClient {
 
         // Message Time (uint64)
         body.writeUInt64(nanoseconds());
-        console.log("nanoseconds:", nanoseconds());
+        // console.log("nanoseconds:", nanoseconds());
+        // body.writeUInt64(1714472826732002560n);
 
         // Token (32 bytes)
         body.writeBuffer(Buffer.alloc(32, 0));
@@ -257,9 +261,13 @@ class AntelopeNetClient {
 
         const message = Buffer.concat([header.filled, body.filled]);
         console.log(header.filled.toString("hex"));
-        console.log("Final handshake message:", message.toString('hex'));
+        console.log(
+          "Final handshake message:",
+          message.toString('hex')
+        );
         this.#socket.write(message);
         this.#handshake = true;
+        this.sendTimeMessage();
     }
 
     sendTimeMessage() {
@@ -277,14 +285,17 @@ class AntelopeNetClient {
         const header = new SerialBuffer(Buffer.alloc(5));
         header.writeUInt32(body.offset + 1);
         header.writeUInt8(3);
+        console.log(header.offset, body.offset)
         const message = Buffer.concat([header.filled, body.filled]);
+        console.log(message.toString("hex"))
         this.#socket.write(message);
     }
 }
 
 const testClient = new AntelopeNetClient(
     "waxp2p.sentnl.io:9876",
-    '1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4'
+    '1064487b3cd1a897ce03ae5b6a865651747e2e152090f99c1d19d44e01aea5a4',
+    'e64eea5a902181de7ef3054892e1b33ce62f1f097a54e1908ab76a542ce79d5e'
 );
 
 testClient.connect();
